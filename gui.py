@@ -26,11 +26,14 @@ Description: This programs creates a GUI and serial connection with an
              The arduino code currently just repeats the message
              sent because this is a preliminary test. The actual baud
              rate will be determined later.
+
+External Libraries: https://pyserial.readthedocs.io/en/latest/
+                    https://pysimplegui.com/
 '''
 
 
 # Establishes connection to arduino using PySerial Library with baud rate of 9600
-#arduino = serial.Serial(port='COM3', baudrate=9600,timeout=1)
+arduino = serial.Serial(port='COM3', baudrate=9600,timeout=1)
 
 # Wait for the connection to establish
 time.sleep(2)
@@ -53,16 +56,18 @@ HELP = '''G00 {X} {Y}: Move at max speed to (x, y)
 TITLE = ('Comic Sans', 12, 'bold')
 
 '''     Helper Functions       '''
-# Name: check_arguments
-# Argument: command (string)
-# Output: 'Pass' or 'Fail'
-# Description: takes the user entered g code command,
-#              using regular expressions it checks whether
-#              the command is valid. If so, the message
-#              is encoded and sends it to the arduino and returns 'Pass'. 
-#              If not, it displays a message to reference the 'help' button
-#              and returns 'Fail'
 def check_arguments(command: str) -> str:
+    '''
+    Name: check_arguments
+    Argument: command (string)
+    Output: 'Pass' or 'Fail'
+    Description: takes the user entered g code command,
+                using regular expressions it checks whether
+                the command is valid. If so, the message
+                is encoded and sends it to the arduino and returns 'Pass'. 
+                If not, it displays a message to reference the 'help' button
+                and returns 'Fail'
+    '''
     # regular expression
     g_pattern = r'^G(90|91|20|21)$'
     m_pattern = r'^M(02|06|72)$'
@@ -72,23 +77,23 @@ def check_arguments(command: str) -> str:
     # Test if each regex matchs
     if re.match(g_pattern, command):
         print(f'Sending g code command {command}')
-        # arduino.write(command.encode())
+        arduino.write((command + '\n').encode())
     elif re.match(m_pattern, command):
         print(f'Sending m code command {command}')
-        # arduino.write(command.encode())
+        arduino.write((command + '\n').encode())
     elif re.match(specific_feed, command):
-        # print(f'Sending G01 command {command}')
+        pieces = command.split()
+        print(f'Sending G01 command {command}')
+        for piece in pieces:
+            print(piece)
+            arduino.write((piece + '\n').encode())
+
+    elif re.match(max_feed, command):
         pieces = command.split()
         print(f'Sending G00 command {command}')
         for piece in pieces:
             print(piece)
-        # arduino.write(command.encode())
-    elif re.match(max_feed, command):
-        pieces = command.split()
-        # print(f'Sending G00 command {command}')
-        for piece in pieces:
-            print(piece)
-            # arduino.write(piece.encode())
+            arduino.write((piece + '\n').encode())
     else:
         # if none match tell user that command is invalid and return 'Fail'
         sg.popup(f'''{command} doesn\'t match the accepted patterns.\nPlease click help to see the list of commands.''')
@@ -96,14 +101,16 @@ def check_arguments(command: str) -> str:
     # return 'Pass' if 'else' statement isn't reached
     return 'Pass'
 
-# Name: help_window
-# Arguments: None
-# Output: None
-# Description: Creates a window that contains the HELP commands.
-#              Uses a window to allow user to type while viewing.
-#              Must close before clicking 'Send'.
-
+# 
 def help_window() -> None:
+    '''
+    Name: help_window
+    Arguments: None
+    Output: None
+    Description: Creates a window that contains the HELP commands.
+                 Uses a window to allow user to type while viewing.
+                 Must close before clicking 'Send'.
+    '''
     # Layout for the window
     layout = [
         # Text for help
@@ -156,7 +163,7 @@ def main():
         # If 'X' or M02 events are entered, send update to Arduino, and break loop
         if event == sg.WINDOW_CLOSED or values['-GCODE-'] == 'M02':
             print("Quitting")
-            # arduino.write('M02'.encode())
+            arduino.write('M02'.encode())
             time.sleep(1)
             break
 
@@ -171,10 +178,11 @@ def main():
             # Wait while command is sent
             time.sleep(1)
             # If command passed tests
-            # if check == 'Pass':
+            if check == 'Pass':
                 # Read and print message from Arduino
-                # msg = arduino.readline().decode()
-                # print(f'Recieved: {msg}')
+                while(arduino.in_waiting > 0):
+                    msg = arduino.readline().decode().strip()
+                    print(f'{msg}')
 
         # If help button is clicked call function to open help window
         elif event == 'Help':
@@ -195,16 +203,16 @@ def main():
             elif complexity == 'No':
                 complexity = 'Complex'
                    
-            # arduino.write(FLAG.encode())
+            arduino.write(FLAG.encode())
             # send coordinates in here
-            process_img.Process_img(filepath, complexity)
-            # arduino.write(E_FLAG.encode())
+            process_img.Process_img(filepath, complexity, arduino)
+            arduino.write(E_FLAG.encode())
 
 
 
     # If loop is broken close arduino serial connection and GUI window 
     print('Closing serial')
-    # arduino.close()
+    arduino.close()
     window.close()  
 
 # Run main function
